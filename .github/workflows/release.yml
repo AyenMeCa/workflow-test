@@ -1,0 +1,143 @@
+name: Release (vMAJOR.YYMMDD) + Publish Docker
+
+on:
+  push:
+    branches: [ "main" ]
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.VERSION }}
+      created: ${{ steps.version.outputs.CREATED }}
+
+    steps:
+      - name: Checkout (full history + tags)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute version (vMAJOR.YYMMDD)
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git fetch --tags --force
+
+          # 1) Último tag del estilo v<major>.<date>
+          LAST_TAG=$(git tag -l "v[0-9]*.[0-9][0-9][0-9][0-9][0-9][0-9]" --sort=-creatordate | head -n 1 || true)
+
+          if [ -z "${LAST_TAG}" ]; then
+            MAJOR=1
+            RANGE=""
+          else
+            MAJOR="${LAST_TAG#v}"
+            MAJOR="${MAJOR%%.*}"
+            RANGE="${LAST_TAG}..HEAD"
+          fi
+
+          # 2) Detectar si hay cambio grande (major bump)
+          MAJOR_BUMP=0
+          if [ -n "${RANGE}" ]; then
+            # Detecta "type!:" en el subject
+            if git log "${RANGE}" --pretty=format:%s | grep -Eq '^[a-zA-Z]+!:'; then
+              MAJOR_BUMP=1
+            fi
+            # Detecta BREAKING CHANGE en body
+            if git log "${RANGE}" --pretty=format:%b | grep -q 'BREAKING CHANGE:'; then
+              MAJOR_BUMP=1
+            fi
+            # Detecta prefijo "major:" (opcional)
+            if git log "${RANGE}" --pretty=format:%s | grep -Eq '^major:'; then
+              MAJOR_BUMP=1
+            fi
+          else
+            # Primer release: si no hay tags previos, puedes decidir crear v1.<hoy>
+            MAJOR_BUMP=0
+          fi
+
+          if [ "${MAJOR_BUMP}" -eq 1 ]; then
+            MAJOR=$((MAJOR + 1))
+          fi
+
+          # 3) Fecha en zona horaria Bogotá (YYMMDD)
+          DATE=$(TZ="America/Bogota" date +%y%m%d)
+
+          VERSION="v${MAJOR}.${DATE}"
+
+          # 4) Si el tag ya existe, no lo recreamos
+          if git rev-parse "${VERSION}" >/dev/null 2>&1; then
+            echo "Tag ${VERSION} ya existe. No se creará un nuevo release/tag hoy."
+            echo "VERSION=${VERSION}" >> "$GITHUB_OUTPUT"
+            echo "CREATED=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "VERSION=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "CREATED=true" >> "$GITHUB_OUTPUT"
+
+      - name: Create git tag and push
+        if: steps.version.outputs.CREATED == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git tag "${{ steps.version.outputs.VERSION }}"
+          git push origin "${{ steps.version.outputs.VERSION }}"
+
+      - name: Create GitHub Release (auto notes)
+        if: steps.version.outputs.CREATED == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.VERSION }}
+          name: ${{ steps.version.outputs.VERSION }}
+          generate_release_notes: true
+
+  docker:
+    needs: release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Backend image
+      - name: Build & Push Backend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./sententia-back
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/sententia-back:${{ needs.release.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/sententia-back:latest
+
+      # Frontend image
+      - name: Build & Push Frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./sententia-cli
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/sententia-cli:${{ needs.release.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/sententia-cli:latest
