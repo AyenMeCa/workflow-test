@@ -1,8 +1,4 @@
-# Changelog
-## Version 1.26.02.12
-## Cambios del proyecto
-
-## [unreleased]
+## [Unreleased]
 
 - Migracion del frontend desde una base inicial en Vite/React a Next.js con App Router.
 - Creacion de la estructura principal del frontend en `app/` con layout global, estilos globales y pagina principal.
