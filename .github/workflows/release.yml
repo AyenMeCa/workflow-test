@@ -85,6 +85,31 @@ jobs:
           echo "VERSION=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "CREATED=true" >> "$GITHUB_OUTPUT"
 
+      - name: Extract release notes from CHANGELOG.md (Unreleased)
+        id: extract_notes
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Extraer notas de lanzamiento desde CHANGELOG.md para la sección "Unreleased"
+          if [ -f CHANGELOG.md ]; then
+            # Usar sed para extraer el contenido entre "# Unreleased" y la siguiente sección o el final del archivo
+            RELEASE_NOTES=$(sed -n '/^# Unreleased$/,/^# /p' CHANGELOG.md | head -n -1)
+            echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
+            echo "$RELEASE_NOTES" >> "$GITHUB_OUTPUT"
+            echo "EOF" >> "$GITHUB_OUTPUT"
+          else
+            echo "RELEASE_NOTES=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create GitHub Release (auto notes fallback)
+        if: steps.version.outputs.CREATED == 'true' && steps.extract_notes.outputs.RELEASE_NOTES == ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.VERSION }}
+          name: ${{ steps.version.outputs.VERSION }}
+          generate_release_notes: true
+          
       - name: Create git tag and push
         if: steps.version.outputs.CREATED == 'true'
         shell: bash
