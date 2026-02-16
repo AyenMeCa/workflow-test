@@ -18,7 +18,7 @@
 - Creacion de la base backend con FastAPI, estructura modular (`api`, `core`, `schemas`, `services`, `dependencies`) y pruebas iniciales.
 - Implementacion de endpoints base de backend para salud, assistant y vectores.
 - Implementacion del endpoint de chat con Pinecone Assistant.
-- Normalizacion de respuestas del assistant en backend para un contrato estable de consumo.
+- Normalizacion de respuestas del assistant en backend para un contrato estable de consumo.dfsdfs
 - Implementacion de control de evidencia documental en respuestas.
 - Configuracion de CORS en backend para permitir integracion controlada con frontend.
 - Implementacion de endpoint de subida de PDFs en backend.
