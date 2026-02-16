@@ -13,7 +13,7 @@
 - Implementacion de carga de documentos desde frontend con validaciones de formato PDF y tamano maximo.
 - Manejo de estados y feedback de carga de documentos en UI, incluyendo notificaciones de exito y error.
 - Ajustes de UX/UI en el input de chat: tamano, alineacion, ancho, iconografia y comportamiento visual.
-- Ajustes visuales del historial lateral para mejorar lectura y hover sin apariencia de boton tradicional.
+- Ajustes visuales del historial lateral para mejorar lectura y hover sin apariencia de boton tradicional y mas.
 - Actualizacion de cabecera con nueva etiqueta de version e icono visual.
 - Definicion de tipos TypeScript para contratos de chat y upload en frontend.
 - Inclusion de constantes y datos mock para historial de conversaciones.
