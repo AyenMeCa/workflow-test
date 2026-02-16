@@ -142,6 +142,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    
+      - name: Set image repo to lowercase
+        id: img
+        shell: bash
+        run: |
+          echo "REPO_LC=$(echo "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
       - name: Checkout
         uses: actions/checkout@v4
 
