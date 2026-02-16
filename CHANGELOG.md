@@ -2,10 +2,21 @@
 
 ## [Unreleased]
 ### Added
-- ...
+- todos los cambios
+- todos los cambios
+- todos los cambios
+- todos los cambios
+- todos los cambios
+- todos los cambios
+- todos los cambios
+
 
 ### Fixed
-- ...
-
-## v1.260215 - 2026-02-15
-- nuevos cambios
+- todos los cambios
+- todos los cambios
+- todos los cambios
+- todos los cambios
+- todos los cambios
+- todos los cambios
+- todos los cambios
+- todos los cambios
