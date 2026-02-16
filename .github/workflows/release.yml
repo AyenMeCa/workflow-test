@@ -126,11 +126,11 @@ jobs:
       - name: Build & Push Backend
         uses: docker/build-push-action@v5
         with:
-          context: ./sententia-back
+          context: ./back-test
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/sententia-back:${{ needs.release.outputs.version }}
-            ghcr.io/${{ github.repository_owner }}/sententia-back:latest
+            ghcr.io/${{ github.repository_owner }}/back-test:${{ needs.release.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/back-test:latest
 
       # Frontend image
       - name: Build & Push Frontend
@@ -139,5 +139,5 @@ jobs:
           context: ./sententia-cli
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/sententia-cli:${{ needs.release.outputs.version }}
-            ghcr.io/${{ github.repository_owner }}/sententia-cli:latest
+            ghcr.io/${{ github.repository_owner }}/front-test:${{ needs.release.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/front-test:latest
