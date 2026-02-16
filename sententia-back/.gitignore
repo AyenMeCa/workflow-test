@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.ruff_cache/
+
+# Virtual envs
+.venv/
+venv/
+
+# Environment
+.env

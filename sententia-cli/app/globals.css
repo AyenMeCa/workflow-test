@@ -1,0 +1,28 @@
+/*
+ * Archivo: app/globals.css
+ * Proposito: estilos globales de la aplicacion.
+ * Define tokens base (colores/fuentes) y reglas generales del documento.
+ */
+
+@import "tailwindcss";
+
+/* Variables base para tema claro. */
+:root {
+  --background: #f8fafc;
+  --foreground: #334155;
+}
+
+/* Mapea variables CSS a tokens que usa Tailwind v4 via @theme. */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+/* Estilo base de body aplicado en toda la app. */
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}

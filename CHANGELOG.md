@@ -1,22 +1,35 @@
 # Changelog
+## Version 1.26.02.12
+## Cambios del proyecto
 
-## [Unreleased]
-### Added
-- todos los cambios
-- todos los cambios
-- todos los cambios
-- todos los cambios
-- todos los cambios
-- todos los cambios
-- todos los cambios
+## [unreleased]
 
-
-### Fixed
-- todos los cambios
-- todos los cambios
-- todos los cambios
-- todos los cambios
-- todos los cambios
-- todos los cambios
-- todos los cambios
-- todos los cambios
+- Migracion del frontend desde una base inicial en Vite/React a Next.js con App Router.
+- Creacion de la estructura principal del frontend en `app/` con layout global, estilos globales y pagina principal.
+- Modularizacion de la interfaz en componentes de dominio para home: `Header`, `Sidebar`, `WelcomeSection`, `ChatInput` y `AnswerCard`.
+- Integracion del frontend con backend para consultas del asistente legal.
+- Implementacion de render de respuestas con fuentes documentales, paginas y fragmentos destacados.
+- Incorporacion de un visor expandible para inspeccionar el JSON completo de la respuesta.
+- Implementacion de carga de documentos desde frontend con validaciones de formato PDF y tamano maximo.
+- Manejo de estados y feedback de carga de documentos en UI, incluyendo notificaciones de exito y error.
+- Ajustes de UX/UI en el input de chat: tamano, alineacion, ancho, iconografia y comportamiento visual.
+- Ajustes visuales del historial lateral para mejorar lectura y hover sin apariencia de boton tradicional.
+- Actualizacion de cabecera con nueva etiqueta de version e icono visual.
+- Definicion de tipos TypeScript para contratos de chat y upload en frontend.
+- Inclusion de constantes y datos mock para historial de conversaciones.
+- Configuracion de variable de entorno publica para URL base de API en frontend.
+- Dockerizacion del frontend para ejecucion en contenedor de desarrollo.
+- Creacion de la base backend con FastAPI, estructura modular (`api`, `core`, `schemas`, `services`, `dependencies`) y pruebas iniciales.
+- Implementacion de endpoints base de backend para salud, assistant y vectores.
+- Implementacion del endpoint de chat con Pinecone Assistant.
+- Normalizacion de respuestas del assistant en backend para un contrato estable de consumo.
+- Implementacion de control de evidencia documental en respuestas.
+- Configuracion de CORS en backend para permitir integracion controlada con frontend.
+- Implementacion de endpoint de subida de PDFs en backend.
+- Validaciones backend para subida de archivos: extension permitida, archivo vacio, limite de tamano y duplicados por nombre.
+- Estandarizacion de mensajes de error y respuesta para operaciones de upload.
+- Incorporacion de pruebas de backend para flujo de subida de documentos.
+- Agregado de archivos de configuracion y documentacion del backend (`.env.example`, `README`, `pyproject`, `Dockerfile`).
+- Dockerizacion del backend para ejecucion local en contenedor.
+- Configuracion de orquestacion local con `docker-compose` para frontend y backend.
+- Actualizacion progresiva de documentacion general del proyecto en raiz.
