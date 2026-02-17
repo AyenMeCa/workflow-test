@@ -2,7 +2,19 @@ name: Release (vMAJOR.YYMMDD) + Publish Docker
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
+
+  # Para reintentar Docker / actualizar el Release aunque el tag ya exista
+  workflow_dispatch:
+    inputs:
+      force_docker:
+        description: "Ejecutar Docker aunque el tag ya exista"
+        required: false
+        default: "false"
+      tag:
+        description: "Tag a usar (opcional) ej: v6.260216. Si se deja vacío, se calcula automáticamente."
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -33,6 +45,27 @@ jobs:
 
           git fetch --tags --force
 
+          # Si es manual y el usuario pasó un tag, úsalo tal cual.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.tag }}" ]; then
+            VERSION="${{ github.event.inputs.tag }}"
+
+            # Validación básica del formato v<major>.<YYMMDD>
+            if ! echo "$VERSION" | grep -Eq '^v[0-9]+\.[0-9]{6}$'; then
+              echo "Tag inválido: $VERSION. Debe ser como v6.260216"
+              exit 1
+            fi
+
+            # Si el tag no existe, fallamos (en dispatch normalmente es para reintentar)
+            if ! git rev-parse "$VERSION" >/dev/null 2>&1; then
+              echo "El tag $VERSION no existe en el repo. Crea el tag o ejecuta sin 'tag' para autogenerar."
+              exit 1
+            fi
+
+            echo "VERSION=$VERSION" >> "$GITHUB_OUTPUT"
+            echo "CREATED=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           # 1) Último tag del estilo v<major>.<date>
           LAST_TAG=$(git tag -l "v[0-9]*.[0-9][0-9][0-9][0-9][0-9][0-9]" --sort=-creatordate | head -n 1 || true)
 
@@ -60,8 +93,6 @@ jobs:
             if git log "${RANGE}" --pretty=format:%s | grep -Eq '^major:'; then
               MAJOR_BUMP=1
             fi
-          else
-            MAJOR_BUMP=0
           fi
 
           if [ "${MAJOR_BUMP}" -eq 1 ]; then
@@ -70,7 +101,6 @@ jobs:
 
           # 3) Fecha en zona horaria Bogotá (YYMMDD)
           DATE=$(TZ="America/Bogota" date +%y%m%d)
-
           VERSION="v${MAJOR}.${DATE}"
 
           # 4) Si el tag ya existe, no lo recreamos
@@ -86,6 +116,7 @@ jobs:
 
       - name: Extract release notes from CHANGELOG.md (Unreleased)
         id: notes
+        if: steps.version.outputs.CREATED == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -138,7 +169,8 @@ jobs:
 
   docker:
     needs: release
-    if: needs.release.outputs.created == 'true'
+    # Corre si se creó release nuevo, o si lo forzas manualmente.
+    if: needs.release.outputs.version != '' && (needs.release.outputs.created == 'true' || (github.event_name == 'workflow_dispatch' && github.event.inputs.force_docker == 'true'))
     runs-on: ubuntu-latest
 
     steps:
@@ -161,7 +193,9 @@ jobs:
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      # Backend image
       - name: Build & Push Backend
+        id: build_back
         uses: docker/build-push-action@v5
         with:
           context: ./sententia-back
@@ -170,7 +204,9 @@ jobs:
             ghcr.io/${{ steps.img.outputs.REPO_LC }}/sententia-back:${{ needs.release.outputs.version }}
             ghcr.io/${{ steps.img.outputs.REPO_LC }}/sententia-back:latest
 
+      # Frontend image
       - name: Build & Push Frontend
+        id: build_front
         uses: docker/build-push-action@v5
         with:
           context: ./sententia-cli
@@ -178,3 +214,90 @@ jobs:
           tags: |
             ghcr.io/${{ steps.img.outputs.REPO_LC }}/sententia-cli:${{ needs.release.outputs.version }}
             ghcr.io/${{ steps.img.outputs.REPO_LC }}/sententia-cli:latest
+
+      # (Opcional) Genera un docker-compose listo para desplegar esa versión
+      - name: Generate docker-compose for this release
+        shell: bash
+        run: |
+          cat > docker-compose.release.yml <<'YML'
+          services:
+            api:
+              image: ghcr.io/${{ steps.img.outputs.REPO_LC }}/sententia-back:${{ needs.release.outputs.version }}
+              ports:
+                - "8000:8000"
+              restart: unless-stopped
+
+            web:
+              image: ghcr.io/${{ steps.img.outputs.REPO_LC }}/sententia-cli:${{ needs.release.outputs.version }}
+              environment:
+                NEXT_PUBLIC_API_URL: http://api:8000
+              depends_on:
+                - api
+              ports:
+                - "3000:3000"
+              restart: unless-stopped
+          YML
+
+      # Sube el compose como asset del Release (si el release existe por ese tag)
+      - name: Upload compose to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.release.outputs.version }}
+          files: docker-compose.release.yml
+
+      # Actualiza el body del Release para que "aparezcan" las imágenes Docker (pull + digest)
+      - name: Update GitHub Release with Docker info
+        uses: actions/github-script@v7
+        env:
+          TAG: ${{ needs.release.outputs.version }}
+          REPO_LC: ${{ steps.img.outputs.REPO_LC }}
+          BACK_DIGEST: ${{ steps.build_back.outputs.digest }}
+          FRONT_DIGEST: ${{ steps.build_front.outputs.digest }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const tag = process.env.TAG;
+            const repoLc = process.env.REPO_LC;
+
+            const backImage = `ghcr.io/${repoLc}/sententia-back:${tag}`;
+            const frontImage = `ghcr.io/${repoLc}/sententia-cli:${tag}`;
+
+            const backDigest = process.env.BACK_DIGEST || "";
+            const frontDigest = process.env.FRONT_DIGEST || "";
+
+            const markerStart = "<!-- DOCKER-IMAGES:START -->";
+            const markerEnd   = "<!-- DOCKER-IMAGES:END -->";
+
+            const dockerBlock =
+`${markerStart}
+### Docker images
+
+**Backend**
+- Image: \`${backImage}\`
+- Digest: \`${backDigest}\`
+- Pull: \`docker pull ${backImage}\`
+
+**Frontend**
+- Image: \`${frontImage}\`
+- Digest: \`${frontDigest}\`
+- Pull: \`docker pull ${frontImage}\`
+
+**Latest**
+- Backend: \`docker pull ghcr.io/${repoLc}/sententia-back:latest\`
+- Frontend: \`docker pull ghcr.io/${repoLc}/sententia-cli:latest\`
+${markerEnd}`;
+
+            const { owner, repo } = context.repo;
+            const rel = await github.rest.repos.getReleaseByTag({ owner, repo, tag });
+
+            let body = rel.data.body || "";
+            const re = new RegExp(`${markerStart}[\\s\\S]*?${markerEnd}`, "m");
+
+            body = re.test(body) ? body.replace(re, dockerBlock) : `${body}\n\n${dockerBlock}`;
+
+            await github.rest.repos.updateRelease({
+              owner,
+              repo,
+              release_id: rel.data.id,
+              body
+            });
