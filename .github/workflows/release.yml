@@ -238,8 +238,8 @@ jobs:
               ports:
                 - "\${WEB_PORT:-3000}:3000"
               environment:
-                # OJO: Debe ser accesible por el NAVEGADOR del usuario (normalmente localhost:8000)
-                NEXT_PUBLIC_API_URL: "\${NEXT_PUBLIC_API_URL:-http://localhost:8000}"
+                # Target interno del proxy Next.js (runtime, editable sin rebuild)
+                API_PROXY_TARGET: "\${API_PROXY_TARGET:-http://api:8000}"
               depends_on:
                 - api
               restart: unless-stopped
@@ -266,7 +266,7 @@ jobs:
           CORS_ALLOW_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
 
           # Frontend: URL pública del backend (accesible por el navegador)
-          NEXT_PUBLIC_API_URL=http://localhost:8000
+          API_PROXY_TARGET=http://api:8000
           EOF
 
           # README.DOCKER.md
@@ -283,8 +283,7 @@ jobs:
 
           3) Edita el archivo .env:
              - PINECONE_API_KEY
-             - NEXT_PUBLIC_API_URL (si NO es localhost)
-             - CORS_ALLOW_ORIGINS (si el frontend no es localhost)
+             - API_PROXY_TARGET (solo si tu backend no corre como servicio "api:8000")
 
           4) Ejecuta:
              docker compose -f docker-compose.release.yml pull

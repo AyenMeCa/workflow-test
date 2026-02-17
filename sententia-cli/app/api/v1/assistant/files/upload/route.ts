@@ -2,6 +2,7 @@ const DEFAULT_PROXY_TARGET = "http://api:8000";
 const UPLOAD_PATH = "/api/v1/assistant/files/upload";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   const target = (process.env.API_PROXY_TARGET || DEFAULT_PROXY_TARGET).replace(/\/$/, "");
