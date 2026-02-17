@@ -35,6 +35,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          fetch-tags: true
 
       - name: Compute version (vMAJOR.YYMMDD)
         id: version
@@ -52,8 +53,9 @@ jobs:
               exit 1
             fi
 
+            # Si el tag no existe, fallamos (dispatch típico para reintentar docker sobre release existente)
             if ! git rev-parse "$VERSION" >/dev/null 2>&1; then
-              echo "El tag $VERSION no existe en el repo. Crea el tag o ejecuta sin 'tag' para autogenerar."
+              echo "El tag $VERSION no existe. Ejecuta sin 'tag' para autogenerar o crea el tag primero."
               exit 1
             fi
 
@@ -62,7 +64,7 @@ jobs:
             exit 0
           fi
 
-          # 1) Último tag del estilo v<major>.<date>
+          # 1) Último tag del estilo v<major>.<YYMMDD>
           LAST_TAG=$(git tag -l "v[0-9]*.[0-9][0-9][0-9][0-9][0-9][0-9]" --sort=-creatordate | head -n 1 || true)
 
           if [ -z "${LAST_TAG}" ]; then
@@ -77,12 +79,15 @@ jobs:
           # 2) Detectar si hay cambio grande (major bump)
           MAJOR_BUMP=0
           if [ -n "${RANGE}" ]; then
+            # type!: en subject
             if git log "${RANGE}" --pretty=format:%s | grep -Eq '^[a-zA-Z]+!:'; then
               MAJOR_BUMP=1
             fi
+            # BREAKING CHANGE: en body
             if git log "${RANGE}" --pretty=format:%b | grep -q 'BREAKING CHANGE:'; then
               MAJOR_BUMP=1
             fi
+            # major: en subject (shortcut)
             if git log "${RANGE}" --pretty=format:%s | grep -Eq '^major:'; then
               MAJOR_BUMP=1
             fi
@@ -95,6 +100,7 @@ jobs:
           DATE=$(TZ="America/Bogota" date +%y%m%d)
           VERSION="v${MAJOR}.${DATE}"
 
+          # 3) Si el tag ya existe, no lo recreamos
           if git rev-parse "${VERSION}" >/dev/null 2>&1; then
             echo "Tag ${VERSION} ya existe. No se creará un nuevo release/tag hoy."
             echo "VERSION=${VERSION}" >> "$GITHUB_OUTPUT"
@@ -136,7 +142,6 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-
           git tag "${{ steps.version.outputs.VERSION }}"
           git push origin "${{ steps.version.outputs.VERSION }}"
 
@@ -165,7 +170,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set image repo to lowercase
+      - name: Set GHCR repo to lowercase
         id: img
         shell: bash
         run: |
@@ -201,35 +206,134 @@ jobs:
             ghcr.io/${{ steps.img.outputs.REPO_LC }}/sententia-cli:${{ needs.release.outputs.version }}
             ghcr.io/${{ steps.img.outputs.REPO_LC }}/sententia-cli:latest
 
-      - name: Generate docker-compose for this release
+      - name: Generate Release Docker assets (compose + env + readme)
         shell: bash
         run: |
-          cat > docker-compose.release.yml <<'YML'
+          set -euo pipefail
+
+          # docker-compose.release.yml (CON environment dentro del compose)
+          # - Imágenes quedan apuntando a ESTE release (tag fijo).
+          # - Variables editables vía .env (por eso verás ${VAR} dentro del compose).
+          cat > docker-compose.release.yml <<EOF
           services:
             api:
               image: ghcr.io/${{ steps.img.outputs.REPO_LC }}/sententia-back:${{ needs.release.outputs.version }}
+              container_name: sententia-api
               ports:
-                - "8000:8000"
+                - "\${API_PORT:-8000}:8000"
+              environment:
+                APP_NAME: "\${APP_NAME:-Sententia Back}"
+                ENVIRONMENT: "\${ENVIRONMENT:-local}"
+                DEBUG: "\${DEBUG:-true}"
+                API_PREFIX: "\${API_PREFIX:-/api/v1}"
+                PINECONE_API_KEY: "\${PINECONE_API_KEY:-}"
+                PINECONE_ASSISTANT_NAME: "\${PINECONE_ASSISTANT_NAME:-sententia-pruebas}"
+                PINECONE_ASSISTANT_MODEL: "\${PINECONE_ASSISTANT_MODEL:-gpt-4o}"
+                CORS_ALLOW_ORIGINS: "\${CORS_ALLOW_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}"
               restart: unless-stopped
 
             web:
               image: ghcr.io/${{ steps.img.outputs.REPO_LC }}/sententia-cli:${{ needs.release.outputs.version }}
+              container_name: sententia-cli
+              ports:
+                - "\${WEB_PORT:-3000}:3000"
               environment:
-                NEXT_PUBLIC_API_URL: http://api:8000
+                # OJO: Debe ser accesible por el NAVEGADOR del usuario (normalmente localhost:8000)
+                NEXT_PUBLIC_API_URL: "\${NEXT_PUBLIC_API_URL:-http://localhost:8000}"
               depends_on:
                 - api
-              ports:
-                - "3000:3000"
               restart: unless-stopped
-          YML
+          EOF
 
-      - name: Upload compose to Release
+          # .env.example (el usuario lo renombra a .env y lo edita)
+          cat > .env.example <<'EOF'
+          # Puertos locales
+          API_PORT=8000
+          WEB_PORT=3000
+
+          # Backend
+          APP_NAME=Sententia Back
+          ENVIRONMENT=local
+          DEBUG=true
+          API_PREFIX=/api/v1
+
+          # Pinecone (NO uses comillas aquí)
+          PINECONE_API_KEY=PEGA_AQUI_TU_KEY
+          PINECONE_ASSISTANT_NAME=sententia-pruebas
+          PINECONE_ASSISTANT_MODEL=gpt-4o
+
+          # CORS: debe permitir el origen del frontend
+          CORS_ALLOW_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+
+          # Frontend: URL pública del backend (accesible por el navegador)
+          NEXT_PUBLIC_API_URL=http://localhost:8000
+          EOF
+
+          # README.DOCKER.md
+          cat > README.DOCKER.md <<'EOF'
+          ## Cómo ejecutar (Docker)
+
+          1) Descarga estos archivos del Release en una misma carpeta:
+             - docker-compose.release.yml
+             - .env.example
+             - README.DOCKER.md
+
+          2) Renombra:
+             - .env.example -> .env
+
+          3) Edita el archivo .env:
+             - PINECONE_API_KEY
+             - NEXT_PUBLIC_API_URL (si NO es localhost)
+             - CORS_ALLOW_ORIGINS (si el frontend no es localhost)
+
+          4) Ejecuta:
+             docker compose -f docker-compose.release.yml pull
+             docker compose -f docker-compose.release.yml up -d
+
+          5) Abre:
+             - Frontend: http://localhost:3000
+             - Backend:  http://localhost:8000
+          EOF
+
+      - name: Delete existing Release assets (if any) to allow re-run
+        uses: actions/github-script@v7
+        env:
+          TAG: ${{ needs.release.outputs.version }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const tag = process.env.TAG;
+            const { owner, repo } = context.repo;
+
+            const rel = await github.rest.repos.getReleaseByTag({ owner, repo, tag });
+            const assets = rel.data.assets || [];
+
+            const targets = new Set([
+              "docker-compose.release.yml",
+              ".env.example",
+              "README.DOCKER.md",
+            ]);
+
+            for (const a of assets) {
+              if (targets.has(a.name)) {
+                await github.rest.repos.deleteReleaseAsset({
+                  owner,
+                  repo,
+                  asset_id: a.id,
+                });
+              }
+            }
+
+      - name: Upload Docker assets to Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.release.outputs.version }}
-          files: docker-compose.release.yml
+          files: |
+            docker-compose.release.yml
+            .env.example
+            README.DOCKER.md
 
-      - name: Update GitHub Release with Docker info
+      - name: Update GitHub Release body with Docker pull commands
         uses: actions/github-script@v7
         env:
           TAG: ${{ needs.release.outputs.version }}
