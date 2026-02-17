@@ -2,6 +2,7 @@ const DEFAULT_PROXY_TARGET = "http://api:8000";
 const CHAT_PATH = "/api/v1/assistant/chat";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   const target = (process.env.API_PROXY_TARGET || DEFAULT_PROXY_TARGET).replace(/\/$/, "");
