@@ -26,9 +26,8 @@ export default function Home() {
   // Respuesta estructurada del backend para renderizar la tarjeta de resultado.
   const [response, setResponse] = useState<ChatResponse | null>(null);
 
-  // Construye el endpoint con base en variable de entorno, removiendo "/" final si existe.
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? "";
-  const endpoint = `${baseUrl.replace(/\/$/, "")}/api/v1/assistant/chat`;
+  // El frontend siempre llama al mismo endpoint relativo; Next hace proxy al backend real.
+  const endpoint = "/api/v1/assistant/chat";
 
   // Ejecuta la consulta contra el backend y actualiza estados de UI.
   const handleRequest = async () => {

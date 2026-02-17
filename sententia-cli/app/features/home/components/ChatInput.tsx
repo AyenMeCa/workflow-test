@@ -40,9 +40,8 @@ export function ChatInput({ question, loading, onQuestionChange, onSubmit }: Cha
   const [uploading, setUploading] = useState(false);
   // Estado del modal de feedback (exito o error).
   const [feedback, setFeedback] = useState<UploadFeedback | null>(null);
-  // URL base del backend configurada por entorno.
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? "";
-  const uploadEndpoint = `${baseUrl.replace(/\/$/, "")}/api/v1/assistant/files/upload`;
+  // Endpoint relativo: Next.js proxy al backend real desde el servidor.
+  const uploadEndpoint = "/api/v1/assistant/files/upload";
 
   // Permite Enter para enviar y Shift+Enter para salto de linea.
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
